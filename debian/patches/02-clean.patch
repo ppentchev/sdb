@@ -5,12 +5,12 @@ Last-Update: 2013-03-27
 
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -54,4 +54,4 @@
+@@ -59,4 +59,4 @@
  	${CC} ${CFLAGS} -o ${BIN} main.o ${OBJ}
  
  clean:
 -	rm -rf ${OBJ} libsdb.a a.out sdb sdb.dSYM *.sdb *.db *.${SOEXT}
-+	rm -rf ${OBJ} main.o libsdb.a a.out sdb sdb.dSYM *.sdb *.db *.${SOEXT}
++	rm -rf ${OBJ} ${SOBJ} main.o libsdb.a a.out sdb sdb.dSYM *.sdb *.db *.${SOEXT}
 --- a/bindings/vala/Makefile
 +++ b/bindings/vala/Makefile
 @@ -21,7 +21,7 @@

@@ -1,6 +1,5 @@
 sdb (0.6-1) UNRELEASED; urgency=low
 
-  TODO: build the shared library even more properly (separate object files)
   TODO: Lintian warnings
   TODO: confirm the public domain license
   TODO: compiler warnings

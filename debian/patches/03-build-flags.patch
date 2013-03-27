@@ -1,22 +1,13 @@
 Description: Honor some more compiler and linker flags.
- - honor CPPFLAGS in the shared library build
- - honor LDFLAGS (and ignore CFLAGS) in the binaries
+ - honor CPPFLAGS in the memcache build
+ - honor LDFLAGS (and ignore CFLAGS) while linking everywhere
 Forwarded: not yet
 Author: Peter Pentchev <roam@ringlet.net>
 Last-Update: 2013-03-27
 
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -29,7 +29,7 @@
- 	${RANLIB} libsdb.a
- 
- libsdb.${SOEXT}: ${OBJ}
--	${CC} ${CFLAGS} $(CFLAGS_SHARED) ${LDFLAGS} $(LDFLAGS_SHARED) -o $@ $(subst .o,.c,${OBJ})
-+	${CC} ${CPPFLAGS} ${CFLAGS} $(CFLAGS_SHARED) ${LDFLAGS} $(LDFLAGS_SHARED) -o $@ $(subst .o,.c,${OBJ})
- 
- t:
- 	rm -f foo
-@@ -51,7 +51,7 @@
+@@ -56,7 +56,7 @@
  main.c:
  
  ${BIN}: libsdb.a main.o
@@ -24,7 +15,7 @@ Last-Update: 2013-03-27
 +	${CC} ${LDFLAGS} -o ${BIN} main.o ${OBJ}
  
  clean:
- 	rm -rf ${OBJ} main.o libsdb.a a.out sdb sdb.dSYM *.sdb *.db *.${SOEXT}
+ 	rm -rf ${OBJ} ${SOBJ} main.o libsdb.a a.out sdb sdb.dSYM *.sdb *.db *.${SOEXT}
 --- a/memcache/Makefile
 +++ b/memcache/Makefile
 @@ -16,7 +16,7 @@
