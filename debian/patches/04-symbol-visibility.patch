@@ -1,0 +1,537 @@
+Description: Do not expose the internal implementation symbols.
+Forwarded: not yet
+Author: Peter Pentchev <roam@ringlet.net>
+Last-Update: 2013-03-27
+
+--- a/config.mk
++++ b/config.mk
+@@ -8,7 +8,7 @@
+ CFLAGS+=-Wall
+ #CFLAGS+=-O3
+ #CFLAGS+=-ggdb -g -Wall -O0
+-CFLAGS_SHARED?=-fPIC -shared
++CFLAGS_SHARED?=-fPIC -shared -fvisibility=hidden
+ 
+ HAVE_VALA=$(shell valac --version)
+ # This is hacky
+--- a/src/json.c
++++ b/src/json.c
+@@ -28,7 +28,7 @@
+ 	*ptr = 0;
+ }
+ 
+-char *sdb_json_get (Sdb *s, const char *k, const char *p, ut32 *cas) {
++SDB_VISIBLE char *sdb_json_get (Sdb *s, const char *k, const char *p, ut32 *cas) {
+ 	Rangstr rs;
+ 	char *u, *v = sdb_get (s, k, cas);
+ 	if (!v) return NULL;
+@@ -38,19 +38,19 @@
+ 	return u;
+ }
+ 
+-int sdb_json_inc(Sdb *s, const char *k, const char *p, int n, ut32 cas) {
++SDB_VISIBLE int sdb_json_inc(Sdb *s, const char *k, const char *p, int n, ut32 cas) {
+ 	int cur = sdb_json_geti (s, k, p);
+ 	sdb_json_seti (s, k, p, cur+n, cas);
+ 	return cur;
+ }
+ 
+-int sdb_json_dec(Sdb *s, const char *k, const char *p, int n, ut32 cas) {
++SDB_VISIBLE int sdb_json_dec(Sdb *s, const char *k, const char *p, int n, ut32 cas) {
+ 	int cur = sdb_json_geti (s, k, p);
+ 	sdb_json_seti (s, k, p, cur-n, cas);
+ 	return cur;
+ }
+ 
+-int sdb_json_geti (Sdb *s, const char *k, const char *p) {
++SDB_VISIBLE int sdb_json_geti (Sdb *s, const char *k, const char *p) {
+ 	char *v = sdb_get (s, k, 0); // XXX cas
+ 	if (v) {
+ 		Rangstr rs = json_get (v, p);
+@@ -59,13 +59,13 @@
+ 	return 0;
+ }
+ 
+-int sdb_json_seti (Sdb *s, const char *k, const char *p, int v, ut32 cas) {
++SDB_VISIBLE int sdb_json_seti (Sdb *s, const char *k, const char *p, int v, ut32 cas) {
+ 	char str[64];
+ 	__itoa (v, str);
+ 	return sdb_json_set (s, k, p, str, cas);
+ }
+ 
+-int sdb_json_set (Sdb *s, const char *k, const char *p, const char *v, ut32 cas) {
++SDB_VISIBLE int sdb_json_set (Sdb *s, const char *k, const char *p, const char *v, ut32 cas) {
+ 	const char *beg[3];
+ 	const char *end[3];
+ 	int l, idx, len[3];
+@@ -114,7 +114,7 @@
+ 	return 1;
+ }
+ 
+-char *sdb_json_indent(const char *s) {
++SDB_VISIBLE char *sdb_json_indent(const char *s) {
+ 	int indent = 0;
+ 	int i, instr = 0;
+ 	char *o, *O = malloc (strlen (s)*2);
+@@ -162,7 +162,7 @@
+ 	return O;
+ }
+ 
+-char *sdb_json_unindent(const char *s) {
++SDB_VISIBLE char *sdb_json_unindent(const char *s) {
+ 	int instr = 0;
+ 	int len = strlen (s);
+ 	char *o, *O = malloc (len);
+@@ -190,7 +190,7 @@
+ 	return O;
+ }
+ 
+-const char *sdb_json_format(SdbJsonString* s, const char *fmt, ...) {
++SDB_VISIBLE const char *sdb_json_format(SdbJsonString* s, const char *fmt, ...) {
+ 	va_list ap;
+ 	char *arg_s, *x, tmp[128];
+ 	float arg_f;
+--- a/src/lock.c
++++ b/src/lock.c
+@@ -5,10 +5,11 @@
+ #include <unistd.h>
+ #include <fcntl.h>
+ //#include <sys/file.h>
++#include "sdb.h"
+ 
+ static char buf[128];
+ 
+-const char *sdb_lockfile(const char *f) {
++SDB_VISIBLE const char *sdb_lockfile(const char *f) {
+ 	int len;
+ 	if (!f || !*f)
+ 		return NULL;
+@@ -20,7 +21,7 @@
+ 	return buf;
+ }
+ 
+-int sdb_lock(const char *s) {
++SDB_VISIBLE int sdb_lock(const char *s) {
+ 	int ret;
+ 	if (!s) return 0;
+ 	ret = open (s, O_CREAT | O_TRUNC | O_WRONLY | O_EXCL, 0644);
+@@ -42,7 +43,7 @@
+ #endif
+ }
+ 
+-void sdb_unlock(const char *s) {
++SDB_VISIBLE void sdb_unlock(const char *s) {
+ 	//flock (fd, LOCK_UN);
+ 	unlink (s);
+ }
+--- a/src/ns.c
++++ b/src/ns.c
+@@ -2,7 +2,7 @@
+ 
+ #include "sdb.h"
+ 
+-void sdb_ns_free(Sdb *s) {
++SDB_VISIBLE void sdb_ns_free(Sdb *s) {
+ 	SdbNs *ns;
+ 	SdbListIter *it;
+ 	ls_foreach (s->ns, it, ns) {
+@@ -19,7 +19,7 @@
+ 	return ns;
+ }
+ 
+-Sdb *sdb_ns(Sdb *s, const char *name) {
++SDB_VISIBLE Sdb *sdb_ns(Sdb *s, const char *name) {
+ 	SdbNs *ns;
+ 	SdbListIter *it;
+ 	ut32 hash = sdb_hashstr (name);
+@@ -32,7 +32,7 @@
+ 	return ns->sdb;
+ }
+ 
+-void sdb_ns_sync (Sdb *s) {
++SDB_VISIBLE void sdb_ns_sync (Sdb *s) {
+ 	SdbNs *ns;
+ 	SdbListIter *it;
+ 	ls_foreach (s->ns, it, ns) {
+--- a/src/query.c
++++ b/src/query.c
+@@ -6,7 +6,7 @@
+ #include <stdlib.h>
+ #include "sdb.h"
+ 
+-int sdb_queryf (Sdb *s, const char *fmt, ...) {
++SDB_VISIBLE int sdb_queryf (Sdb *s, const char *fmt, ...) {
+         char string[4096];
+         int ret;
+         va_list ap;
+@@ -17,7 +17,7 @@
+         return ret;
+ }
+ 
+-char *sdb_querysf (Sdb *s, char *buf, int buflen, const char *fmt, ...) {
++SDB_VISIBLE char *sdb_querysf (Sdb *s, char *buf, int buflen, const char *fmt, ...) {
+         char string[4096];
+         char *ret;
+         va_list ap;
+@@ -28,7 +28,7 @@
+         return ret;
+ }
+ 
+-char *sdb_querys (Sdb *s, char *buf, int len, const char *cmd) {
++SDB_VISIBLE char *sdb_querys (Sdb *s, char *buf, int len, const char *cmd) {
+ 	char *p, *eq, *ask = strchr (cmd, '?');
+ 	int i, ok, w, alength;
+ 	ut64 n;
+@@ -133,7 +133,7 @@
+ 	return NULL;
+ }
+ 
+-int sdb_query (Sdb *s, const char *cmd) {
++SDB_VISIBLE int sdb_query (Sdb *s, const char *cmd) {
+ 	char buf[1024], *out = sdb_querys (s, buf, sizeof (buf), cmd);
+ 	if (!out) return 0;
+ 	if (*out) puts (out);
+--- a/src/sdb.c
++++ b/src/sdb.c
+@@ -21,7 +21,7 @@
+ }
+ 
+ // TODO: use mmap instead of read.. much faster!
+-Sdb* sdb_new (const char *dir, int lock) {
++SDB_VISIBLE Sdb* sdb_new (const char *dir, int lock) {
+ 	Sdb* s;
+ 	if (lock && !sdb_lock (sdb_lockfile (dir)))
+ 		return NULL;
+@@ -47,7 +47,7 @@
+ 	return s;
+ }
+ 
+-void sdb_file (Sdb* s, const char *dir) {
++SDB_VISIBLE void sdb_file (Sdb* s, const char *dir) {
+ 	if (s->lock)
+ 		sdb_unlock (sdb_lockfile (s->dir));
+ 	free (s->dir);
+@@ -56,7 +56,7 @@
+ 		sdb_lock (sdb_lockfile (s->dir));
+ }
+ 
+-void sdb_free (Sdb* s) {
++SDB_VISIBLE void sdb_free (Sdb* s) {
+ 	if (!s) return;
+ 	cdb_free (&s->db);
+ 	if (s->lock)
+@@ -70,7 +70,7 @@
+ 	free (s);
+ }
+ 
+-const char *sdb_getc (Sdb* s, const char *key, ut32 *cas) {
++SDB_VISIBLE const char *sdb_getc (Sdb* s, const char *key, ut32 *cas) {
+ 	ut32 hash, pos, len, keylen;
+ 	SdbKv *kv;
+ 	ut64 now = 0LL;
+@@ -110,7 +110,7 @@
+ 	return s->db.map+pos;
+ }
+ 
+-char *sdb_get (Sdb* s, const char *key, ut32 *cas) {
++SDB_VISIBLE char *sdb_get (Sdb* s, const char *key, ut32 *cas) {
+ 	char *buf;
+ 	ut32 hash, pos, len, keylen;
+ 	SdbKv *kv;
+@@ -156,18 +156,18 @@
+ 	return buf;
+ }
+ 
+-int sdb_remove (Sdb* s, const char *key, ut32 cas) {
++SDB_VISIBLE int sdb_remove (Sdb* s, const char *key, ut32 cas) {
+ 	return key? sdb_set (s, key, "", cas): 0;
+ }
+ 
+ // set if not defined
+-int sdb_add (Sdb *s, const char *key, const char *val, ut32 cas) {
++SDB_VISIBLE int sdb_add (Sdb *s, const char *key, const char *val, ut32 cas) {
+ 	if (sdb_exists (s, key))
+ 		return 0;
+ 	return sdb_set (s, key, val, cas);
+ }
+ 
+-int sdb_exists (Sdb* s, const char *key) {
++SDB_VISIBLE int sdb_exists (Sdb* s, const char *key) {
+ 	char ch;
+ 	SdbKv *kv;
+ 	int klen = strlen (key);
+@@ -185,7 +185,7 @@
+ 	return 0;
+ }
+ 
+-void sdb_reset (Sdb *s) {
++SDB_VISIBLE void sdb_reset (Sdb *s) {
+ 	ht_free (s->ht);
+ 	s->ht = ht_new ();
+ }
+@@ -200,11 +200,11 @@
+ 	return kv;
+ }
+ 
+-void sdb_kv_free (struct sdb_kv *kv) {
++SDB_VISIBLE void sdb_kv_free (struct sdb_kv *kv) {
+ 	free (kv);
+ }
+ 
+-int sdb_set (Sdb* s, const char *key, const char *val, ut32 cas) {
++SDB_VISIBLE int sdb_set (Sdb* s, const char *key, const char *val, ut32 cas) {
+ 	SdbHashEntry *e;
+ 	SdbKv *kv;
+ 	ut32 hash, klen;
+@@ -230,7 +230,7 @@
+ 	return *val? kv->cas: 0;
+ }
+ 
+-int sdb_sync (Sdb* s) {
++SDB_VISIBLE int sdb_sync (Sdb* s) {
+ 	SdbKv *kv;
+ 	SdbListIter it, *iter;
+ 	char k[SDB_KSZ];
+@@ -285,7 +285,7 @@
+ 	return len;
+ }
+ 
+-void sdb_dump_begin (Sdb* s) {
++SDB_VISIBLE void sdb_dump_begin (Sdb* s) {
+ 	if (s->fd != -1) {
+ 		seek_set (s->fd, 0);
+ 		eod = getnum (s->fd);
+@@ -296,7 +296,7 @@
+ 
+ // XXX: overflow if caller doesnt respects sizes
+ // TODO: add support for readonly dump next here
+-int sdb_dump_next (Sdb* s, char *key, char *value) {
++SDB_VISIBLE int sdb_dump_next (Sdb* s, char *key, char *value) {
+ 	ut32 dlen, klen;
+ 	if (s->fd==-1 || !getkvlen (s->fd, &klen, &dlen))
+ 		return 0;
+@@ -311,13 +311,13 @@
+ 	return 0;
+ }
+ 
+-ut64 sdb_now () {
++SDB_VISIBLE ut64 sdb_now () {
+         struct timeval now;
+         gettimeofday (&now, NULL);
+ 	return now.tv_sec;
+ }
+ 
+-ut64 sdb_unow () {
++SDB_VISIBLE ut64 sdb_unow () {
+ 	ut64 x;
+         struct timeval now;
+         gettimeofday (&now, NULL);
+@@ -333,7 +333,7 @@
+ 	return e;
+ }
+ 
+-int sdb_expire(Sdb* s, const char *key, ut64 expire) {
++SDB_VISIBLE int sdb_expire(Sdb* s, const char *key, ut64 expire) {
+ 	char *buf;
+ 	ut32 hash, pos, len;
+ 	SdbKv *kv;
+@@ -366,7 +366,7 @@
+ 	return sdb_expire (s, key, expire); // recursive
+ }
+ 
+-ut64 sdb_get_expire(Sdb* s, const char *key) {
++SDB_VISIBLE ut64 sdb_get_expire(Sdb* s, const char *key) {
+ 	SdbKv *kv;
+ 	ut32 hash = sdb_hash (key, 0);
+ 	kv = (SdbKv*)ht_lookup (s->ht, hash);
+@@ -375,7 +375,7 @@
+ 	return 0LL;
+ }
+ 
+-ut32 sdb_hash(const char *s, int len) {
++SDB_VISIBLE ut32 sdb_hash(const char *s, int len) {
+ 	ut32 h = CDB_HASHSTART;
+ 	if (len<1) len = strlen (s)+1; // XXX slow
+ 	while (len--) {
+@@ -385,7 +385,7 @@
+ 	return h;
+ }
+ 
+-void sdb_flush(Sdb* s) {
++SDB_VISIBLE void sdb_flush(Sdb* s) {
+ 	ht_free (s->ht);
+ 	s->ht = ht_new ();
+ 	close (s->fd);
+@@ -393,7 +393,7 @@
+ }
+ 
+ /* sdb-create api */
+-int sdb_create (Sdb *s) {
++SDB_VISIBLE int sdb_create (Sdb *s) {
+ 	int nlen;
+ 	char *str;
+ 	if (!s || !s->dir || s->fdump != -1) return 0; // cannot re-create
+@@ -412,14 +412,14 @@
+ 	return 1;
+ }
+ 
+-int sdb_append (Sdb *s, const char *key, const char *val) {
++SDB_VISIBLE int sdb_append (Sdb *s, const char *key, const char *val) {
+ 	struct cdb_make *c = &s->m;
+ 	if (!key || !val) return 0;
+ 	//if (!*val) return 0; //undefine variable if no value
+ 	return cdb_make_add (c, key, strlen (key)+1, val, strlen (val)+1);
+ }
+ 
+-int sdb_finish (Sdb *s) {
++SDB_VISIBLE int sdb_finish (Sdb *s) {
+ 	cdb_make_finish (&s->m);
+ #if USE_MMAN
+ 	fsync (s->fdump);
+--- a/src/sdb.h
++++ b/src/sdb.h
+@@ -1,6 +1,12 @@
+ #ifndef _INCLUDE_SDB_H_
+ #define _INCLUDE_SDB_H_
+ 
++#if defined(__GNUC__)
++#define SDB_VISIBLE __attribute__((visibility("default")))
++#else
++#define SDB_VISIBLE
++#endif
++
+ #ifdef __cplusplus
+ extern "C" {
+ #endif
+--- a/src/sdba.c
++++ b/src/sdba.c
+@@ -2,11 +2,11 @@
+ 
+ #include "sdb.h"
+ 
+-const char *sdb_anext(const char *str) {
++SDB_VISIBLE const char *sdb_anext(const char *str) {
+ 	return str+strlen (str)+1;
+ }
+ 
+-char *sdb_astring(char *str, int *hasnext) {
++SDB_VISIBLE char *sdb_astring(char *str, int *hasnext) {
+ 	char *p = strchr (str, SDB_RS);
+ 	if (!p) {
+ 		if (hasnext) *hasnext = 0;
+@@ -17,7 +17,7 @@
+ 	return str;
+ }
+ 
+-char *sdb_aget(Sdb *s, const char *key, int idx, ut32 *cas) {
++SDB_VISIBLE char *sdb_aget(Sdb *s, const char *key, int idx, ut32 *cas) {
+ 	int i, len;
+ 	const char *str = sdb_getc (s, key, cas);
+ 	char *o, *n, *p = (char*)str;
+@@ -47,7 +47,7 @@
+ }
+ 
+ // TODO: done, but there's room for improvement
+-int sdb_ains(Sdb *s, const char *key, int idx, const char *val, ut32 cas) {
++SDB_VISIBLE int sdb_ains(Sdb *s, const char *key, int idx, const char *val, ut32 cas) {
+ 	const char *str = sdb_getc (s, key, 0);
+ 	int lnstr, lstr, lval, ret;
+ 	char *x, *ptr, *nstr = NULL;
+@@ -84,7 +84,7 @@
+ }
+ 
+ // set/replace
+-int sdb_aset(Sdb *s, const char *key, int idx, const char *val, ut32 cas) {
++SDB_VISIBLE int sdb_aset(Sdb *s, const char *key, int idx, const char *val, ut32 cas) {
+ 	char *nstr, *ptr;
+ 	const char *usr, *str = sdb_getc (s, key, 0);
+ 	int lval, len, ret = 0;
+@@ -109,7 +109,7 @@
+ 	return ret;
+ }
+ 
+-int sdb_adel(Sdb *s, const char *key, int idx, ut32 cas) {
++SDB_VISIBLE int sdb_adel(Sdb *s, const char *key, int idx, ut32 cas) {
+ 	int i;
+ 	char *p, *n, *str = sdb_get (s, key, 0);
+ 	p = str;
+@@ -128,7 +128,7 @@
+ 	return 1;
+ }
+ 
+-const char *sdb_aindex(const char *str, int idx) {
++SDB_VISIBLE const char *sdb_aindex(const char *str, int idx) {
+ 	int len = 0;
+ 	const char *n, *p = str;
+ 	for (len=0; ; len++) {
+@@ -142,7 +142,7 @@
+ }
+ 
+ // TODO: make static inline?
+-int sdb_alen(const char *str) {
++SDB_VISIBLE int sdb_alen(const char *str) {
+ 	int len = 1;
+ 	const char *n, *p = str;
+ 	if (!p|| !*p) return 0;
+@@ -155,14 +155,14 @@
+ 	return len;
+ }
+ 
+-int sdb_alength(Sdb *s, const char *key) {
++SDB_VISIBLE int sdb_alength(Sdb *s, const char *key) {
+ 	const char *str = sdb_getc (s, key, 0);
+ 	return sdb_alen (str);
+ }
+ 
+ #if 0
+ // XXX: totally unefficient. do not use, replace SDB_RS for '\n' may be enought
+-int sdb_alist(Sdb *s, const char *key) {
++SDB_VISIBLE int sdb_alist(Sdb *s, const char *key) {
+ 	int len = 0, hasnext = 1;
+ 	char *list = sdb_get (s, key, 0);
+ 	char *ptr = list;
+--- a/src/sdbn.c
++++ b/src/sdbn.c
+@@ -3,7 +3,7 @@
+ #include "sdb.h"
+ #include "types.h"
+ 
+-int sdb_nexists (Sdb *s, const char *key) {
++SDB_VISIBLE int sdb_nexists (Sdb *s, const char *key) {
+ 	char c;
+ 	const char *o = sdb_getc (s, key, NULL);
+ 	if (!o) return 0;
+@@ -28,7 +28,7 @@
+ 	__strrev (s, i);
+ }
+ 
+-ut64 sdb_getn(Sdb *s, const char *key, ut32 *cas) {
++SDB_VISIBLE ut64 sdb_getn(Sdb *s, const char *key, ut32 *cas) {
+ 	ut64 n;
+ 	char *p;
+ 	const char *v = sdb_getc (s, key, cas);
+@@ -39,13 +39,13 @@
+ 	return n;
+ }
+ 
+-int sdb_setn(Sdb *s, const char *key, ut64 v, ut32 cas) {
++SDB_VISIBLE int sdb_setn(Sdb *s, const char *key, ut64 v, ut32 cas) {
+ 	char b[128];
+ 	__ulltoa (v, b);
+ 	return sdb_set (s, key, b, cas);
+ }
+ 
+-ut64 sdb_inc(Sdb *s, const char *key, ut64 n2, ut32 cas) {
++SDB_VISIBLE ut64 sdb_inc(Sdb *s, const char *key, ut64 n2, ut32 cas) {
+ 	ut32 c;
+ 	ut64 n = sdb_getn (s, key, &c);
+ 	if (cas && c != cas) return 0LL;
+@@ -55,7 +55,7 @@
+ 	return n;
+ }
+ 
+-ut64 sdb_dec(Sdb *s, const char *key, ut64 n2, ut32 cas) {
++SDB_VISIBLE ut64 sdb_dec(Sdb *s, const char *key, ut64 n2, ut32 cas) {
+ 	ut32 c;
+ 	ut64 n = sdb_getn (s, key, &c);
+ 	if (cas && c != cas)

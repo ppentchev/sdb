@@ -1,3 +1,4 @@
 01-shared-library.patch
 02-clean.patch
 03-build-flags.patch
+04-symbol-visibility.patch
