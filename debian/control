@@ -1,0 +1,51 @@
+Source: sdb
+Priority: optional
+Maintainer: Peter Pentchev <roam@ringlet.net>
+Build-Depends: debhelper (>= 9), valac
+Standards-Version: 3.9.4
+Section: libs
+Homepage: http://github.com/radare/sdb/
+Vcs-Git: git://github.com/ppentchev/sdb.git -b debian
+Vcs-Browser: http://github.com/ppentchev/sdb/tree/debian
+
+Package: libsdb-dev
+Section: libdevel
+Architecture: any
+Depends: libsdb0 (= ${binary:Version}), ${misc:Depends}
+Description: simple and fast key/value database - development files
+ sdb is a simple key/value database with disk storage, based on cdb, but
+ with various optimizations and improvements related to both the on-disk
+ format and the runtime processing.  Its core API supports querying and
+ modifying data within JSON objects stored in the database, as well as
+ references to external sdb databases using namespaces.
+ .
+ This package contains the header files and static libraries needed for
+ developing applications with the sdb library, as well as Vala language
+ bindings and the sdbtypes library providing additional Vala types.
+
+Package: libsdb0
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: simple and fast key/value database
+ sdb is a simple key/value database with disk storage, based on cdb, but
+ with various optimizations and improvements related to both the on-disk
+ format and the runtime processing.  Its core API supports querying and
+ modifying data within JSON objects stored in the database, as well as
+ references to external sdb databases using namespaces.
+ .
+ This package contains the sdb shared library itself.
+
+Package: sdb
+Section: utils
+Architecture: any
+Depends: libsdb0 (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Description: simple and fast key/value database - command-line tools
+ sdb is a simple key/value database with disk storage, based on cdb, but
+ with various optimizations and improvements related to both the on-disk
+ format and the runtime processing.  Its core API supports querying and
+ modifying data within JSON objects stored in the database, as well as
+ references to external sdb databases using namespaces.
+ .
+ This package contains the sdb command-line tool for creating, modifying
+ and querying databases, as well as mcsdb, a memcache server with disk
+ storage based on sdb.

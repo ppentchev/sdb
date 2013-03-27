@@ -1,0 +1,11 @@
+sdb (0.6-1) UNRELEASED; urgency=low
+
+  TODO: build the shared library even more properly (separate object files)
+  TODO: Lintian warnings
+  TODO: confirm the public domain license
+  TODO: compiler warnings
+  TODO: symbols visibility?
+
+  * Initial release.  Closes: #704059
+
+ -- Peter Pentchev <roam@ringlet.net>  Wed, 27 Mar 2013 13:41:34 +0200

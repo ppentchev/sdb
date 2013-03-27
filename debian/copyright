@@ -1,0 +1,22 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: sdb
+Source: http://github.com/radare/sdb
+License: PD
+
+Files: *
+Copyright: cdb and sdb have been released into the public domain
+License: PD
+ The 'cdb' source has been placed into the public domain by
+ Prof. Daniel J. Bernstein, noted at http://cr.yp.to/distributors.html
+ FIXME: obtain confirmation from "pancake" about the additional files.
+
+Files: debian/*
+Copyright: Copyright (c) 2013  Peter Pentchev
+License: GPL-2+
+ This package is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ .
+ On Debian systems, the complete text of the GNU General Public License
+ Version 2 can be found in file "/usr/share/common-licenses/GPL-2".

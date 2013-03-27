@@ -1,0 +1,5 @@
+#!/usr/bin/make -f
+# Rules for building the Debian packages for the sdb library.
+
+%:
+	dh $@ 

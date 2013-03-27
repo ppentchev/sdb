@@ -1,0 +1,47 @@
+Description: Honor some more compiler and linker flags.
+ - honor CPPFLAGS in the shared library build
+ - honor LDFLAGS (and ignore CFLAGS) in the binaries
+Forwarded: not yet
+Author: Peter Pentchev <roam@ringlet.net>
+Last-Update: 2013-03-27
+
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -29,7 +29,7 @@
+ 	${RANLIB} libsdb.a
+ 
+ libsdb.${SOEXT}: ${OBJ}
+-	${CC} ${CFLAGS} $(CFLAGS_SHARED) ${LDFLAGS} $(LDFLAGS_SHARED) -o $@ $(subst .o,.c,${OBJ})
++	${CC} ${CPPFLAGS} ${CFLAGS} $(CFLAGS_SHARED) ${LDFLAGS} $(LDFLAGS_SHARED) -o $@ $(subst .o,.c,${OBJ})
+ 
+ t:
+ 	rm -f foo
+@@ -51,7 +51,7 @@
+ main.c:
+ 
+ ${BIN}: libsdb.a main.o
+-	${CC} ${CFLAGS} -o ${BIN} main.o ${OBJ}
++	${CC} ${LDFLAGS} -o ${BIN} main.o ${OBJ}
+ 
+ clean:
+ 	rm -rf ${OBJ} main.o libsdb.a a.out sdb sdb.dSYM *.sdb *.db *.${SOEXT}
+--- a/memcache/Makefile
++++ b/memcache/Makefile
+@@ -16,7 +16,7 @@
+ 	ranlib ${LIBA}
+ 
+ ${CBIN}: ${COBJS} mainclient.o
+-	${CC} mainclient.o ${COBJS} ${LIBS} -o ${CBIN}
++	${CC} mainclient.o ${COBJS} ${LDFLAGS} ${LIBS} -o ${CBIN}
+ 
+ ${OBJS} mainclient.o: cmds.h
+ 
+@@ -24,7 +24,7 @@
+ 	${CC} -o ${BIN} ${OBJS} ${LDFLAGS} ${LIBS}
+ 
+ cmds.h: cmds.o
+-	${CC} -o cmds cmds.o ${CFLAGS} ${LDFLAGS} ${LIBS}
++	${CC} -o cmds cmds.o ${CPPFLAGS} ${CFLAGS} ${LDFLAGS} ${LIBS}
+ 	./cmds > cmds.h
+ 
+ clean:

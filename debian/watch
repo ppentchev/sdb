@@ -1,0 +1,2 @@
+version=3
+https://github.com/radare/sdb/tags/ /radare/sdb/archive/(?:sdb-)?(.*)\.tar\.gz
