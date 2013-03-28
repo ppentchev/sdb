@@ -4,7 +4,7 @@ Description: Fix some compiler warnings.
  - define the _POSIX_C_SOURCE and _XOPEN_SOURCE feature test macros
  - fix some const mismatches
  - declare some missing function prototypes
-Forwarded: not yet
+Forwarded: yes
 Author: Peter Pentchev <roam@ringlet.net>
 Last-Update: 2013-03-28
 

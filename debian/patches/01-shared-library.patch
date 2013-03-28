@@ -3,7 +3,7 @@ Description: Build a shared library properly.
  - pass the -soname parameter to the linker with version 0
  - break out the compiler and linker flags for the shared build
  - compile separate object files for the shared library
-Forwarded: not yet
+Forwarded: yes
 Author: Peter Pentchev <roam@ringlet.net>
 Last-Update: 2013-03-27
 

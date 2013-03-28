@@ -1,7 +1,7 @@
 Description: Honor some more compiler and linker flags.
  - honor CPPFLAGS in the memcache build
  - honor LDFLAGS (and ignore CFLAGS) while linking everywhere
-Forwarded: not yet
+Forwarded: yes
 Author: Peter Pentchev <roam@ringlet.net>
 Last-Update: 2013-03-27
 
