@@ -1,0 +1,110 @@
+Description: Fix some compiler warnings.
+ - handle fgets(), read() and write() errors
+Forwarded: not yet
+Author: Peter Pentchev <roam@ringlet.net>
+Last-Update: 2013-03-28
+
+--- a/src/main.c
++++ b/src/main.c
+@@ -50,9 +50,16 @@
+ 		exit (1);
+ 	}
+ 	for (;;) {
+-		fgets (line, sizeof line, stdin);
+-		if (feof (stdin))
+-			break;
++		if (fgets (line, sizeof line, stdin) == NULL)
++		{
++			if (feof (stdin))
++				break;
++			/* Either an error or some fgets() weirdness */
++			sdb_finish (s);
++			unlink (f);
++			perror ("Error reading input data");
++			exit (1);
++		}
+ 		line[strlen (line)-1] = 0;
+ 		if ((eq = strchr (line, '='))) {
+ 			*eq = 0;
+@@ -104,9 +111,12 @@
+ 		char line[SDB_VSZ+SDB_KSZ]; // XXX can overflow stack
+ 		if ((s = sdb_new (argv[1], 0)))
+ 			for (;;) {
+-				fgets (line, sizeof line, stdin);
+-				if (feof (stdin))
++				if (fgets (line, sizeof line, stdin) == NULL)
++				{
++					if (ferror (stdin))
++						perror ("Error reading input data");
+ 					break;
++				}
+ 				line[strlen (line)-1] = 0;
+ 				save = sdb_query (s, line);
+ 			}
+--- a/memcache/main.c
++++ b/memcache/main.c
+@@ -141,7 +141,11 @@
+ 		}
+ 		break;
+ 	case 2: // write : not yet used
+-		write (c->fd, c->buf+c->idx, c->len-c->idx);
++		r = write (c->fd, c->buf+c->idx, c->len-c->idx);
++		if (r == -1)
++			printf ("Ignored error\n");
++		else if (r < c->len-c->idx)
++			printf ("Ignored short write\n");
+ 		break;
+ 	}
+ 	return 0;
+--- a/memcache/client.c
++++ b/memcache/client.c
+@@ -69,6 +69,7 @@
+ char *mcsdb_client_get (McSdbClient *ms, const char *key, ut64 *exptime) {
+ 	int sexp, slen = 0;
+ 	char *buf, *p;
++	size_t left, pos;
+ 	net_printf (ms->fd, "get %s\r\n", key);
+ 	net_flush (ms->fd);
+ 	buf = net_readnl (ms->fd);
+@@ -93,7 +94,20 @@
+ 	if (slen<1)
+ 		return NULL;
+ 	buf = malloc (slen+2);
+-	read (ms->fd, buf, slen+2);
++	pos = 0;
++	left = slen + 2;
++	while (left > 0)
++	{
++		ssize_t n;
++		n = read (ms->fd, buf+pos, left);
++		if (n == -1)
++		{
++			free (buf);
++			return NULL;
++		}
++		left -= n;
++		pos += n;
++	}
+ 	buf[slen] = 0;
+ 	free (net_readnl (ms->fd)); // read END
+ 	return buf;
+--- a/memcache/mainclient.c
++++ b/memcache/mainclient.c
+@@ -16,9 +16,14 @@
+ 		return 1;
+ 	}
+ 	for (;;) {
+-		fgets (buf, sizeof (buf), stdin);
+-		if (feof (stdin))
+-			break;
++		if (fgets (buf, sizeof (buf), stdin) == NULL)
++		{
++			if (feof (stdin))
++				break;
++			perror ("Could not read input data");
++			mcsdb_client_free (ms);
++			return 1;
++		}
+ 		buf[strlen (buf)-1] = 0;
+ 		if (buf[0]=='+') {
+ 			mcsdb_client_incr (ms, buf+1, 1);

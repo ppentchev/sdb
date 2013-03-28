@@ -1,5 +1,19 @@
 #!/usr/bin/make -f
 # Rules for building the Debian packages for the sdb library.
 
+# Aim for the top, adapt if anything should break on the buildds.
+DEB_BUILD_MAINT_OPTIONS=	hardening=+all
+export DEB_BUILD_MAINT_OPTIONS
+
+CFLAGS:=	$(shell dpkg-buildflags --get CFLAGS)
+CPPFLAGS:=	$(shell dpkg-buildflags --get CPPFLAGS)
+LDFLAGS:=	$(shell dpkg-buildflags --get LDFLAGS)
+
+ifneq (,$(filter werror,$(DEB_BUILD_OPTIONS)))
+	CFLAGS+=	-Werror
+endif
+
+export CFLAGS
+
 %:
 	dh $@ 

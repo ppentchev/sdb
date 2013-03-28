@@ -2,3 +2,4 @@
 02-clean.patch
 03-build-flags.patch
 04-symbol-visibility.patch
+05-compiler-warnings.patch
