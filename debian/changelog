@@ -1,7 +1,10 @@
 sdb (0.6-1) UNRELEASED; urgency=low
 
   TODO: Lintian warnings
-  TODO: confirm the public domain license
+  TODO: confirm the public domain license; the author actually confirmed
+        in private e-mail that this was, indeed, the intention.  There
+        are plans to tag a further version Real Soon Now(tm) with
+        the license information included.
 
   * Initial release.  Closes: #704059
 
