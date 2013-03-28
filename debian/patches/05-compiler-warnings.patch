@@ -3,6 +3,7 @@ Description: Fix some compiler warnings.
  - fix some signed/unsigned mismatches
  - define the _POSIX_C_SOURCE and _XOPEN_SOURCE feature test macros
  - fix some const mismatches
+ - declare some missing function prototypes
 Forwarded: not yet
 Author: Peter Pentchev <roam@ringlet.net>
 Last-Update: 2013-03-28
@@ -69,14 +70,18 @@ Last-Update: 2013-03-28
  			}
 --- a/memcache/main.c
 +++ b/memcache/main.c
-@@ -2,6 +2,7 @@
+@@ -2,9 +2,10 @@
  #include <signal.h>
  #include <sys/socket.h>
  #include "mcsdb.h"
++#include "protocol.h"
 +#include "json/util.h"
  
  McSdb *ms = NULL;
- int protocol_handle(McSdbClient *c, char *buf);
+-int protocol_handle(McSdbClient *c, char *buf);
+ 
+ static McSdbClient *mcsdb_client_new_fd(int fd) {
+ 	McSdbClient *c = R_NEW (McSdbClient);
 @@ -48,7 +49,7 @@
  	printf ("mcsdbd v"MCSDB_VERSION"\n");
  }
@@ -318,6 +323,17 @@ Last-Update: 2013-03-28
  int sdb_exists (Sdb*, const char *key);
  int sdb_nexists (Sdb*, const char *key);
  int sdb_remove (Sdb*, const char *key, ut32 cas);
+@@ -99,8 +99,8 @@
+ int sdb_expire(Sdb* s, const char *key, ut64 expire);
+ ut64 sdb_get_expire(Sdb* s, const char *key);
+ // int sdb_get_cas(Sdb* s, const char *key) -> takes no sense at all..
+-ut64 sdb_now ();
+-ut64 sdb_unow ();
++ut64 sdb_now (void);
++ut64 sdb_unow (void);
+ ut32 sdb_hash (const char *key, int klen);
+ #define sdb_hashstr(x) sdb_hash(x,strlen(x))
+ 
 @@ -118,8 +118,8 @@
  
  typedef struct {
@@ -331,10 +347,11 @@ Last-Update: 2013-03-28
  const char *sdb_json_format(SdbJsonString* s, const char *fmt, ...);
 --- a/src/json/json.c
 +++ b/src/json/json.c
-@@ -5,13 +5,14 @@
+@@ -5,13 +5,15 @@
  #include <string.h>
  #include "rangstr.h"
  #include "json.h"
++#include "json-impl.h"
 +#include "util.h"
  
  void json_path_first(Rangstr *s) {
@@ -347,11 +364,13 @@ Last-Update: 2013-03-28
  }
  
  int json_path_next(Rangstr *s) {
-@@ -51,12 +52,12 @@
+@@ -51,12 +53,14 @@
  
  typedef int (*JSONCallback)();
  
 -int json_foreach(const char *s, JSONCallback cb) {
++/* Unused, it seems. */
++#if 0
 +int json_foreach(const char *s, JSONCallback cb __unused) {
  	int i, len, ret;
  	unsigned short *res = NULL;
@@ -362,7 +381,7 @@ Last-Update: 2013-03-28
  	if (!ret) return 0;
  	if (*s=='[') {
  		for (i=0; res[i]; i+=2) {
-@@ -76,7 +77,7 @@
+@@ -76,7 +80,7 @@
  	unsigned short *res;
  	len = strlen (s);
  	res = malloc (len);
@@ -371,7 +390,15 @@ Last-Update: 2013-03-28
  	if (!ret) return 0;
  	if (*s=='[' || *s=='{') {
  		for (i=0; res[i]; i+=2) {
-@@ -101,7 +102,7 @@
+@@ -90,6 +94,7 @@
+ 	}
+ 	return 1;
+ }
++#endif
+ 
+ Rangstr json_find (const char *s, Rangstr *rs) {
+ #define RESFIXSZ 512
+@@ -101,7 +106,7 @@
  	if (!s) return rangstr_null ();
  	len = strlen (s);
  	res = (len<RESFIXSZ)? resfix: malloc (len);
@@ -380,7 +407,7 @@ Last-Update: 2013-03-28
  #define PFREE(x) if (x&&x!=resfix) free (x)
  	if (ret>0) {
  		PFREE (res);
-@@ -132,7 +133,8 @@
+@@ -132,7 +137,8 @@
  }
  
  Rangstr json_get (const char *js, const char *p) {
@@ -390,17 +417,20 @@ Last-Update: 2013-03-28
  	Rangstr rj2, rj = rangstr_new (js);
  	Rangstr rs = rangstr_new (p);
  	json_path_first (&rs);
-@@ -180,6 +182,6 @@
+@@ -180,6 +186,9 @@
  	return rj;
  }
  
 -char *json_set (const char *s, const char *k, const char *v) {
++/* Unused, it seems. */
++#if 0
 +char *json_set (const char *s __unused, const char *k __unused, const char *v __unused) {
  	return NULL;
  }
++#endif
 --- a/src/json/rangstr.h
 +++ b/src/json/rangstr.h
-@@ -9,7 +9,7 @@
+@@ -9,13 +9,13 @@
  typedef struct {
  	int type;
  	int next;
@@ -409,8 +439,24 @@ Last-Update: 2013-03-28
  	const char *p;
  } Rangstr;
  
+ void rangstr_print (Rangstr *s);
+ Rangstr rangstr_new (const char *s);
+-Rangstr rangstr_null();
++Rangstr rangstr_null(void);
+ int rangstr_int (Rangstr *s);
+ char *rangstr_dup (Rangstr *rs);
+ Rangstr rangstr_news (const char *s, ut16 *res, int i);
 --- a/src/json/rangstr.c
 +++ b/src/json/rangstr.c
+@@ -20,7 +20,7 @@
+ 	return rs;
+ }
+ 
+-Rangstr rangstr_null() {
++Rangstr rangstr_null(void) {
+ 	Rangstr rs = {0};
+ 	return rs;
+ }
 @@ -28,7 +28,8 @@
  int rangstr_int (Rangstr *s) {
  	const int base = 10;
@@ -462,27 +508,39 @@ Last-Update: 2013-03-28
  	if (!f || !*f)
  		return NULL;
  	len = strlen (f);
-@@ -31,7 +32,7 @@
+@@ -31,7 +32,9 @@
  	return 1;
  }
  
 -void sdb_lock_wait(const char *s) {
++/* Unused, it seems. */
++#if 0
 +void sdb_lock_wait(const char *s __unused) {
  	// TODO use flock() here
  #if __WIN32__ || __CYGWIN__ || MINGW32
   	while (!sdb_lock (s)) {
+@@ -42,6 +45,7 @@
+ 	// TODO flock (fd, LOCK_EX);
+ #endif
+ }
++#endif
+ 
+ SDB_VISIBLE void sdb_unlock(const char *s) {
+ 	//flock (fd, LOCK_UN);
 --- a/memcache/net.c
 +++ b/memcache/net.c
-@@ -10,7 +10,7 @@
+@@ -10,8 +10,9 @@
  #include <stdarg.h>
  
  static char netbuf[MCSDB_MAX_BUFFER];
 -static int netbuflen = 0;
 +static size_t netbuflen = 0;
  
++static void net_sockopt (int fd);
  
  char *net_readnl(int fd) {
-@@ -44,10 +44,12 @@
+ 	int i = -1;
+@@ -44,10 +45,12 @@
  	va_list ap;
  	va_start (ap, fmt);
  	n = vsnprintf (buf, sizeof (buf)-1, fmt, ap);
@@ -580,7 +638,15 @@ Last-Update: 2013-03-28
  		else break;
 --- a/src/json/js0n.c
 +++ b/src/json/js0n.c
-@@ -7,9 +7,9 @@
+@@ -3,13 +3,17 @@
+ 
+ // opportunity to further optimize would be having different jump tables for higher depths
+ 
++#include <sys/types.h>
++
++#include "json.h"
++
+ #define HAVE_RAWSTR 0
  #define PUSH(i) if(depth == 1) prev = *out++ = ((cur+i) - js)
  #define CAP(i) if(depth == 1) prev = *out++ = ((cur+i) - (js + prev) + 1)
  
@@ -603,3 +669,91 @@ Last-Update: 2013-03-28
  Rangstr json_get (const char *s, const char *path);
  
  /* string based api */
+--- a/memcache/protocol.c
++++ b/memcache/protocol.c
+@@ -1,5 +1,6 @@
+ /* Copyleft 2011-2012 - mcsdb (aka memcache-SimpleDB) - pancake<nopcode.org> */
+ #include "mcsdb.h"
++#include "protocol.h"
+ #include <ctype.h>
+ #include <sys/resource.h>
+ 
+--- /dev/null
++++ b/memcache/protocol.h
+@@ -0,0 +1,6 @@
++#ifndef _INCLUDED_SDB_MEMCACHE_PROTOCOL_H_
++#define _INCLUDED_SDB_MEMCACHE_PROTOCOL_H_
++
++int protocol_handle (McSdbClient *c, char *buf);
++
++#endif
+--- a/src/alloc.h
++++ b/src/alloc.h
+@@ -1,8 +1,7 @@
+ #ifndef ALLOC_H
+ #define ALLOC_H
+ 
+-extern /*@null@*//*@out@*/char *alloc();
+-extern void alloc_free();
+-extern int alloc_re();
++extern /*@null@*//*@out@*/char *alloc(unsigned int n);
++extern void alloc_free(void *);
+ 
+ #endif
+--- a/src/json/main.c
++++ b/src/json/main.c
+@@ -4,9 +4,9 @@
+ #include <stdlib.h>
+ #include "rangstr.h"
+ #include "json.h"
++#include "json-impl.h"
+ #include "../sdb.h"
+ 
+-Rangstr json_find (const char *s, Rangstr *rs);
+ int test_main () {
+ 	Rangstr rs ;
+ 
+--- a/src/ls.h
++++ b/src/ls.h
+@@ -37,7 +37,7 @@
+ #define ls_iter_next(x) (x?1:0)
+ #define ls_iter_cur(x) x->p
+ #define ls_iter_unref(x) x
+-R_API SdbList *ls_new();
++R_API SdbList *ls_new(void);
+ R_API SdbListIter *ls_append(SdbList *list, void *data);
+ R_API SdbListIter *ls_prepend(SdbList *list, void *data);
+ R_API int ls_length(SdbList *list);
+--- a/src/ns.c
++++ b/src/ns.c
+@@ -2,6 +2,8 @@
+ 
+ #include "sdb.h"
+ 
++static SdbNs *sdb_ns_new (const char *name, ut32 hash);
++
+ SDB_VISIBLE void sdb_ns_free(Sdb *s) {
+ 	SdbNs *ns;
+ 	SdbListIter *it;
+--- a/src/sdb.c
++++ b/src/sdb.c
+@@ -14,6 +14,8 @@
+ // must be deprecated
+ static ut32 eod, pos; // what about lseek?
+ 
++static struct sdb_kv* sdb_kv_new (const char *k, const char *v);
++
+ static inline int nextcas() {
+ 	static ut32 cas = 1;
+ 	if (!cas) cas++;
+--- /dev/null
++++ b/src/json/json-impl.h
+@@ -0,0 +1,8 @@
++#ifndef _INCLUDED_SDB_JSON_IMPL_H_
++#define _INCLUDED_SDB_JSON_IMPL_H_
++
++void json_path_first(Rangstr *s);
++int json_path_next(Rangstr *s);
++Rangstr json_find (const char *s, Rangstr *rs);
++
++#endif
