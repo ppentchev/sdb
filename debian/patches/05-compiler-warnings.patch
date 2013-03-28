@@ -1,12 +1,36 @@
 Description: Fix some compiler warnings.
  - handle fgets(), read() and write() errors
+ - fix some signed/unsigned mismatches
 Forwarded: not yet
 Author: Peter Pentchev <roam@ringlet.net>
 Last-Update: 2013-03-28
 
 --- a/src/main.c
 +++ b/src/main.c
-@@ -50,9 +50,16 @@
+@@ -6,11 +6,12 @@
+ #include <unistd.h>
+ #include <fcntl.h>
+ #include "sdb.h"
++#include "json/util.h"
+ 
+ static int save = 0;
+ static Sdb *s = NULL;
+ 
+-static void terminate(int sig) {
++static void terminate(int sig __unused) {
+ 	if (!s) return;
+ 	if (save) sdb_sync (s);
+ 	sdb_free (s);
+@@ -18,7 +19,7 @@
+ }
+ 
+ #if USE_MMAN
+-static void syncronize(int sig) {
++static void syncronize(int sig __unused) {
+ 	// TODO: must be in sdb_sync() or wat?
+ 	Sdb *n;
+ 	sdb_sync (s);
+@@ -50,9 +51,16 @@
  		exit (1);
  	}
  	for (;;) {
@@ -26,7 +50,7 @@ Last-Update: 2013-03-28
  		line[strlen (line)-1] = 0;
  		if ((eq = strchr (line, '='))) {
  			*eq = 0;
-@@ -104,9 +111,12 @@
+@@ -104,9 +112,12 @@
  		char line[SDB_VSZ+SDB_KSZ]; // XXX can overflow stack
  		if ((s = sdb_new (argv[1], 0)))
  			for (;;) {
@@ -43,7 +67,24 @@ Last-Update: 2013-03-28
  			}
 --- a/memcache/main.c
 +++ b/memcache/main.c
-@@ -141,7 +141,11 @@
+@@ -2,6 +2,7 @@
+ #include <signal.h>
+ #include <sys/socket.h>
+ #include "mcsdb.h"
++#include "json/util.h"
+ 
+ McSdb *ms = NULL;
+ int protocol_handle(McSdbClient *c, char *buf);
+@@ -48,7 +49,7 @@
+ 	printf ("mcsdbd v"MCSDB_VERSION"\n");
+ }
+ 
+-static void main_help(const char *arg) {
++static void main_help(const char *arg __unused) {
+ 	printf ("mcsdbd [-hv] [-p port] [sdbfile]\n");
+ }
+ 
+@@ -141,7 +142,11 @@
  		}
  		break;
  	case 2: // write : not yet used
@@ -56,9 +97,43 @@ Last-Update: 2013-03-28
  		break;
  	}
  	return 0;
+@@ -192,7 +197,7 @@
+ 	return s;
+ }
+ 
+-static int udp_parse(McSdbClient *c, int fd) {
++static int udp_parse(McSdbClient *c __unused, int fd) {
+ #pragma pack(2)
+ #define ut16 unsigned short
+ struct udphdr_t {
 --- a/memcache/client.c
 +++ b/memcache/client.c
-@@ -69,6 +69,7 @@
+@@ -1,5 +1,6 @@
+ /* Copyleft 2011-2012 - mcsdb (aka memcache-SimpleDB) - pancake<nopcode.org> */
+ #include "mcsdb.h"
++#include "json/util.h"
+ 
+ McSdbClient *mcsdb_client_new (const char *host, const char *port) {
+ 	McSdbClient *ms;
+@@ -29,7 +30,7 @@
+ 	return net_readnl (ms->fd);
+ }
+ 
+-void mcsdb_client_set (McSdbClient *ms, const char *key, const char *body, ut64 exptime) {
++void mcsdb_client_set (McSdbClient *ms, const char *key, const char *body, ut64 exptime __unused) {
+ 	net_printf (ms->fd, "set %s 0 0 %d\r\n", key, strlen (body));
+ 	net_flush (ms->fd);
+ 	net_printf (ms->fd, "%s\r\n", body);
+@@ -37,7 +38,7 @@
+ 	free (net_readnl (ms->fd));
+ }
+ 
+-static int sendcmd (int fd, const char *cmd, const char *key, const char *body, ut64 exptime) {
++static int sendcmd (int fd, const char *cmd __unused, const char *key, const char *body, ut64 exptime __unused) {
+ 	int ret;
+ 	char *res;
+ 	net_printf (fd, "add %s 0 0 %d\r\n", key, strlen (body));
+@@ -69,6 +70,7 @@
  char *mcsdb_client_get (McSdbClient *ms, const char *key, ut64 *exptime) {
  	int sexp, slen = 0;
  	char *buf, *p;
@@ -66,7 +141,7 @@ Last-Update: 2013-03-28
  	net_printf (ms->fd, "get %s\r\n", key);
  	net_flush (ms->fd);
  	buf = net_readnl (ms->fd);
-@@ -93,7 +94,20 @@
+@@ -93,7 +95,20 @@
  	if (slen<1)
  		return NULL;
  	buf = malloc (slen+2);
@@ -108,3 +183,281 @@ Last-Update: 2013-03-28
  		buf[strlen (buf)-1] = 0;
  		if (buf[0]=='+') {
  			mcsdb_client_incr (ms, buf+1, 1);
+--- a/src/cdb.c
++++ b/src/cdb.c
+@@ -37,7 +37,7 @@
+ 	c->map = NULL;
+ 	cdb_findstart (c);
+ 	c->fd = fd;
+-	if (fd != -1 && !fstat (fd, &st) && st.st_size != UT32_MAX) {
++	if (fd != -1 && !fstat (fd, &st) && st.st_size != (off_t)UT32_MAX) {
+ #if USE_MMAN
+ 		char *x = mmap (0, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+ #else
+@@ -62,8 +62,8 @@
+ 	if (!seek_set (c->fd, pos))
+ 		return 0;
+ 	while (len > 0) {
+-		int r = read (c->fd, buf, len);
+-		if (r!=len) return 0;
++		ssize_t r = read (c->fd, buf, len);
++		if (r < 0) return 0;
+ 		buf += r;
+ 		len -= r;
+ 	}
+@@ -72,7 +72,7 @@
+ 
+ static int match(struct cdb *c, const char *key, ut32 len, ut32 pos) {
+ 	char buf[32];
+-	const int szb = sizeof buf;
++	const size_t szb = sizeof buf;
+ 	while (len > 0) {
+ 		int n = (szb>len)? len: szb;
+ 		if (!cdb_read (c, buf, n, pos))
+--- a/src/buffer.c
++++ b/src/buffer.c
+@@ -13,7 +13,8 @@
+ static int allwrite(BufferOp op, int fd, const char *buf, ut32 len) {
+ 	int w;
+ 	while (len > 0) {
+-		if ((w = op (fd, buf, len)) != len)
++		w = op (fd, buf, len);
++		if (w < 0)
+ 			return 0;
+ 		buf += w;
+ 		len -= w;
+--- a/src/ht.c
++++ b/src/ht.c
+@@ -110,7 +110,7 @@
+ }
+ 
+ static int rehash = 0;
+-static void ht_rehash(SdbHash *ht, int new_size_index) {
++static void ht_rehash(SdbHash *ht, ut32 new_size_index) {
+ 	SdbHash old_ht = *ht;
+ 	SdbHashEntry *e;
+ 	if (new_size_index >= ARRAY_SIZE (hash_sizes))
+--- a/src/query.c
++++ b/src/query.c
+@@ -17,7 +17,7 @@
+         return ret;
+ }
+ 
+-SDB_VISIBLE char *sdb_querysf (Sdb *s, char *buf, int buflen, const char *fmt, ...) {
++SDB_VISIBLE char *sdb_querysf (Sdb *s, char *buf, size_t buflen, const char *fmt, ...) {
+         char string[4096];
+         char *ret;
+         va_list ap;
+@@ -28,19 +28,19 @@
+         return ret;
+ }
+ 
+-SDB_VISIBLE char *sdb_querys (Sdb *s, char *buf, int len, const char *cmd) {
++SDB_VISIBLE char *sdb_querys (Sdb *s, char *buf, size_t len, const char *cmd) {
+ 	char *p, *eq, *ask = strchr (cmd, '?');
+ 	int i, ok, w, alength;
+ 	ut64 n;
+ 
+ 	if (*cmd == '+' || *cmd == '-') {
+ 		n = (*cmd=='+')?(
+-			ask?  sdb_json_inc (s, cmd+1, ask, 1, 0):
++			ask?  (ut64)sdb_json_inc (s, cmd+1, ask, 1, 0):
+ 				sdb_inc (s, cmd+1, 1, 0)):(
+-			ask?  sdb_json_dec (s, cmd+1, ask, 1, 0):
++			ask?  (ut64)sdb_json_dec (s, cmd+1, ask, 1, 0):
+ 				sdb_dec (s, cmd+1, 1, 0));
+ 		w = snprintf (buf, sizeof (buf), "%"ULLFMT"d\n", n);
+-		if (w>len) {
++		if (w<0 || (size_t)w>len) {
+ 			buf = malloc (64);
+ 			snprintf (buf, 64, "%"ULLFMT"d\n", n);
+ 		}
+@@ -56,7 +56,7 @@
+ 		if (cmd[1]=='?') {
+ 			alength = sdb_alength (s, p+1);
+ 			w = snprintf (buf, len, "%d", alength);
+-			if (w>len) {
++			if (w<0 || (size_t)w>len) {
+ 				buf = malloc (32);
+ 				snprintf (buf, 32, "%d", alength);
+ 			}
+@@ -89,9 +89,10 @@
+ 				}
+ 			} else {
+ 				const char *out = sdb_getc (s, p+1, 0);
++				size_t wl;
+ 				if (!out) return NULL;
+-				w = strlen (out);
+-				if (w>len) buf = malloc (w+2);
++				wl = strlen (out);
++				if (wl>len) buf = malloc (wl+2);
+ 				for (i=0; out[i]; i++)
+ 					buf[i] = out[i]==SDB_RS? '\n': out[i];
+ 				buf[i] = 0;
+--- a/src/sdb.h
++++ b/src/sdb.h
+@@ -61,8 +61,8 @@
+ 
+ int sdb_query (Sdb *s, const char *cmd);
+ int sdb_queryf (Sdb *s, const char *fmt, ...);
+-char *sdb_querys (Sdb *s, char *buf, int len, const char *cmd);
+-char *sdb_querysf (Sdb *s, char *buf, int buflen, const char *fmt, ...);
++char *sdb_querys (Sdb *s, char *buf, size_t len, const char *cmd);
++char *sdb_querysf (Sdb *s, char *buf, size_t buflen, const char *fmt, ...);
+ int sdb_exists (Sdb*, const char *key);
+ int sdb_nexists (Sdb*, const char *key);
+ int sdb_remove (Sdb*, const char *key, ut32 cas);
+@@ -118,8 +118,8 @@
+ 
+ typedef struct {
+ 	char *buf;
+-	int blen;
+-	int len;
++	size_t blen;
++	size_t len;
+ } SdbJsonString;
+ 
+ const char *sdb_json_format(SdbJsonString* s, const char *fmt, ...);
+--- a/src/json/json.c
++++ b/src/json/json.c
+@@ -5,13 +5,14 @@
+ #include <string.h>
+ #include "rangstr.h"
+ #include "json.h"
++#include "util.h"
+ 
+ void json_path_first(Rangstr *s) {
+ 	char *p;
+ 	if (!s->p) return;
+ 	p = strchr (s->p, '.');
+ 	s->f = 0;
+-	s->t = p? p-s->p: strlen (s->p);
++	s->t = p? (size_t)(p-s->p): strlen (s->p);
+ }
+ 
+ int json_path_next(Rangstr *s) {
+@@ -51,7 +52,7 @@
+ 
+ typedef int (*JSONCallback)();
+ 
+-int json_foreach(const char *s, JSONCallback cb) {
++int json_foreach(const char *s, JSONCallback cb __unused) {
+ 	int i, len, ret;
+ 	unsigned short *res = NULL;
+ 	len = strlen (s);
+@@ -132,7 +133,8 @@
+ }
+ 
+ Rangstr json_get (const char *js, const char *p) {
+-	int x, rst, n = 0;
++	int x, n = 0;
++	size_t rst;
+ 	Rangstr rj2, rj = rangstr_new (js);
+ 	Rangstr rs = rangstr_new (p);
+ 	json_path_first (&rs);
+@@ -180,6 +182,6 @@
+ 	return rj;
+ }
+ 
+-char *json_set (const char *s, const char *k, const char *v) {
++char *json_set (const char *s __unused, const char *k __unused, const char *v __unused) {
+ 	return NULL;
+ }
+--- a/src/json/rangstr.h
++++ b/src/json/rangstr.h
+@@ -9,7 +9,7 @@
+ typedef struct {
+ 	int type;
+ 	int next;
+-	int f, t;
++	size_t f, t;
+ 	const char *p;
+ } Rangstr;
+ 
+--- a/src/json/rangstr.c
++++ b/src/json/rangstr.c
+@@ -28,7 +28,8 @@
+ int rangstr_int (Rangstr *s) {
+ 	const int base = 10;
+ 	int mul = 1;
+-	int ch, i = 0, n = 0;
++	int ch, n = 0;
++	size_t i = 0;
+ 	if (s->p[s->f]=='[')
+ 		i++;
+ 	if (s->p[s->f]=='-') {
+@@ -73,9 +74,9 @@
+ }
+ 
+ int rangstr_find (Rangstr* a, char ch) {
+-	int i = a->f;
++	size_t i = a->f;
+ 	while (a->p[i] && i<a->t && a->p[i] != ch) i++;
+-	return a->p[i]? i: -1;
++	return a->p[i]? (int)i: -1;
+ }
+ 
+ const char *rangstr_str (Rangstr* rs) {
+--- /dev/null
++++ b/src/json/util.h
+@@ -0,0 +1,10 @@
++#ifndef _INCLUDED_SDB_UTIL_H_
++#define _INCLUDED_SDB_UTIL_H_
++
++#ifdef __GNUC__
++#define __unused	__attribute__((unused))
++#else
++#define __unused
++#endif
++
++#endif
+--- a/src/lock.c
++++ b/src/lock.c
+@@ -6,11 +6,12 @@
+ #include <fcntl.h>
+ //#include <sys/file.h>
+ #include "sdb.h"
++#include "json/util.h"
+ 
+ static char buf[128];
+ 
+ SDB_VISIBLE const char *sdb_lockfile(const char *f) {
+-	int len;
++	size_t len;
+ 	if (!f || !*f)
+ 		return NULL;
+ 	len = strlen (f);
+@@ -31,7 +32,7 @@
+ 	return 1;
+ }
+ 
+-void sdb_lock_wait(const char *s) {
++void sdb_lock_wait(const char *s __unused) {
+ 	// TODO use flock() here
+ #if __WIN32__ || __CYGWIN__ || MINGW32
+  	while (!sdb_lock (s)) {
+--- a/memcache/net.c
++++ b/memcache/net.c
+@@ -10,7 +10,7 @@
+ #include <stdarg.h>
+ 
+ static char netbuf[MCSDB_MAX_BUFFER];
+-static int netbuflen = 0;
++static size_t netbuflen = 0;
+ 
+ 
+ char *net_readnl(int fd) {
+@@ -44,10 +44,12 @@
+ 	va_list ap;
+ 	va_start (ap, fmt);
+ 	n = vsnprintf (buf, sizeof (buf)-1, fmt, ap);
++	va_end (ap);
++	if (n < 0)
++		return 0;
+ 	if (netbuflen+n>sizeof (netbuf))
+ 		net_flush (fd);
+ 	strcpy (netbuf+netbuflen, buf);
+-	va_end (ap);
+ 	netbuflen += n;
+ 	return n;
+ }
