@@ -1,6 +1,8 @@
 Description: Fix some compiler warnings.
  - handle fgets(), read() and write() errors
  - fix some signed/unsigned mismatches
+ - define the _POSIX_C_SOURCE and _XOPEN_SOURCE feature test macros
+ - fix some const mismatches
 Forwarded: not yet
 Author: Peter Pentchev <roam@ringlet.net>
 Last-Update: 2013-03-28
@@ -228,6 +230,15 @@ Last-Update: 2013-03-28
  		len -= w;
 --- a/src/ht.c
 +++ b/src/ht.c
+@@ -44,7 +44,7 @@
+  * free to avoid exponential performance degradation as the hash table fills
+  */
+ 
+-static const ut32 deleted_data;
++static ut32 deleted_data;
+ 
+ static const struct {
+ 	ut32 max_entries, size, rehash;
 @@ -110,7 +110,7 @@
  }
  
@@ -336,7 +347,7 @@ Last-Update: 2013-03-28
  }
  
  int json_path_next(Rangstr *s) {
-@@ -51,7 +52,7 @@
+@@ -51,12 +52,12 @@
  
  typedef int (*JSONCallback)();
  
@@ -345,6 +356,30 @@ Last-Update: 2013-03-28
  	int i, len, ret;
  	unsigned short *res = NULL;
  	len = strlen (s);
+ 	res = malloc (len);
+-	ret = js0n ((unsigned char *)s, len, res);
++	ret = js0n ((const unsigned char *)s, len, res);
+ 	if (!ret) return 0;
+ 	if (*s=='[') {
+ 		for (i=0; res[i]; i+=2) {
+@@ -76,7 +77,7 @@
+ 	unsigned short *res;
+ 	len = strlen (s);
+ 	res = malloc (len);
+-	ret = js0n ((unsigned char *)s, len, res);
++	ret = js0n ((const unsigned char *)s, len, res);
+ 	if (!ret) return 0;
+ 	if (*s=='[' || *s=='{') {
+ 		for (i=0; res[i]; i+=2) {
+@@ -101,7 +102,7 @@
+ 	if (!s) return rangstr_null ();
+ 	len = strlen (s);
+ 	res = (len<RESFIXSZ)? resfix: malloc (len);
+-	ret = js0n ((unsigned char *)s, len, res);
++	ret = js0n ((const unsigned char *)s, len, res);
+ #define PFREE(x) if (x&&x!=resfix) free (x)
+ 	if (ret>0) {
+ 		PFREE (res);
 @@ -132,7 +133,8 @@
  }
  
@@ -461,3 +496,110 @@ Last-Update: 2013-03-28
  	netbuflen += n;
  	return n;
  }
+--- a/config.mk
++++ b/config.mk
+@@ -5,6 +5,9 @@
+ 
+ CFLAGS+=-DVERSION=\"${VERSION}\"
+ 
++CFLAGS_STD?=-D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
++CFLAGS+=${CFLAGS_STD}
++
+ CFLAGS+=-Wall
+ #CFLAGS+=-O3
+ #CFLAGS+=-ggdb -g -Wall -O0
+--- a/src/types.h
++++ b/src/types.h
+@@ -1,6 +1,8 @@
+ #ifndef UINT32_H
+ #define UINT32_H
+ 
++#include <sys/types.h>
++
+ #include <stdlib.h>
+ #include <string.h>
+ #include <unistd.h>
+--- a/src/sdba.c
++++ b/src/sdba.c
+@@ -2,6 +2,8 @@
+ 
+ #include "sdb.h"
+ 
++static char *sdb_aindex_nc(char *str, int idx);
++
+ SDB_VISIBLE const char *sdb_anext(const char *str) {
+ 	return str+strlen (str)+1;
+ }
+@@ -20,7 +22,8 @@
+ SDB_VISIBLE char *sdb_aget(Sdb *s, const char *key, int idx, ut32 *cas) {
+ 	int i, len;
+ 	const char *str = sdb_getc (s, key, cas);
+-	char *o, *n, *p = (char*)str;
++	char *o, *n;
++	const char *p = str;
+ 	if (!str || !*str) return NULL;
+ 	if (idx==0) {
+ 		n = strchr (str, SDB_RS);
+@@ -66,7 +69,7 @@
+ 		memcpy (x+lval+1, str, lstr+1);
+ 	} else {
+ 		nstr = strdup (str);
+-		ptr = (char*)sdb_aindex (nstr, idx);
++		ptr = sdb_aindex_nc (nstr, idx);
+ 		if (ptr) {
+ 			*(ptr-1) = 0;
+ 			lnstr = strlen (nstr);
+@@ -94,7 +97,7 @@
+ 	if (idx<0 || idx>len) // append
+ 		return sdb_ains (s, key, -1, val, cas);
+ 	nstr = strdup (str);
+-	ptr = (char *)sdb_aindex (nstr, idx);
++	ptr = sdb_aindex_nc (nstr, idx);
+ 	if (ptr) {
+ 		lval = strlen (val);
+ 		memcpy (ptr, val, lval+1);
+@@ -134,6 +137,19 @@
+ 	for (len=0; ; len++) {
+ 		if (len == idx)
+ 			return p;
++		n = strchr (p, SDB_RS);
++		if (n) p = n+1;
++		else break;
++	}
++	return NULL;
++}
++
++static char *sdb_aindex_nc(char *str, int idx) {
++	int len = 0;
++	char *n, *p = str;
++	for (len=0; ; len++) {
++		if (len == idx)
++			return p;
+ 		n = strchr (p, SDB_RS);
+ 		if (n) p = n+1;
+ 		else break;
+--- a/src/json/js0n.c
++++ b/src/json/js0n.c
+@@ -7,9 +7,9 @@
+ #define PUSH(i) if(depth == 1) prev = *out++ = ((cur+i) - js)
+ #define CAP(i) if(depth == 1) prev = *out++ = ((cur+i) - (js + prev) + 1)
+ 
+-int js0n(unsigned char *js, unsigned int len, unsigned short *out) {
++int js0n(const unsigned char *js, unsigned int len, unsigned short *out) {
+ 	unsigned short prev = 0;
+-	unsigned char *cur, *end;
++	const unsigned char *cur, *end;
+ 	int depth = 0, utf8_remain = 0;
+ 	static void *gostruct[] = {
+ 		[0 ... 255] = &&l_bad,
+--- a/src/json/json.h
++++ b/src/json/json.h
+@@ -3,7 +3,7 @@
+ 
+ #include "rangstr.h"
+ 
+-int js0n(unsigned char *js, unsigned int len, unsigned short *out);
++int js0n(const unsigned char *js, unsigned int len, unsigned short *out);
+ Rangstr json_get (const char *s, const char *path);
+ 
+ /* string based api */

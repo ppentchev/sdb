@@ -9,9 +9,9 @@ CFLAGS:=	$(shell dpkg-buildflags --get CFLAGS)
 CPPFLAGS:=	$(shell dpkg-buildflags --get CPPFLAGS)
 LDFLAGS:=	$(shell dpkg-buildflags --get LDFLAGS)
 
-CFLAGS+=	-pipe -Wall -W -Wno-override-init #-ansi -pedantic -Wbad-function-cast \
+CFLAGS+=	-pipe -Wall -W -Wno-override-init -std=c99 -Wbad-function-cast \
 		-Wcast-align -Wcast-qual -Wchar-subscripts -Winline \
-		-Wmissing-prototypes -Wnested-externs -Wpointer-arith \
+		#-Wmissing-prototypes -Wnested-externs -Wpointer-arith \
 		-Wredundant-decls -Wshadow -Wstrict-prototypes -Wwrite-strings
 ifneq (,$(filter werror,$(DEB_BUILD_OPTIONS)))
 	CFLAGS+=	-Werror
