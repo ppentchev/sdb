@@ -33,6 +33,15 @@ Last-Update: 2013-03-28
  	// TODO: must be in sdb_sync() or wat?
  	Sdb *n;
  	sdb_sync (s);
+@@ -31,7 +32,7 @@
+ static int sdb_dump (const char *db) {
+ 	char k[SDB_KSZ];
+ 	char v[SDB_VSZ];
+-	Sdb *s = sdb_new (db, 0);
++	s = sdb_new (db, 0);
+ 	if (!s) return 1;
+ 	sdb_dump_begin (s);
+ 	while (sdb_dump_next (s, k, v))
 @@ -50,9 +51,16 @@
  		exit (1);
  	}
@@ -53,6 +62,28 @@ Last-Update: 2013-03-28
  		line[strlen (line)-1] = 0;
  		if ((eq = strchr (line, '='))) {
  			*eq = 0;
+@@ -67,18 +75,18 @@
+ 	exit (o);
+ }
+ 
+-static void showversion() {
++static void showversion(void) {
+ 	printf ("sdb "VERSION"\n");
+ 	exit (0);
+ }
+ 
+-static void showfeatures() {
++static void showfeatures(void) {
+ 	// TODO lock
+ 	printf ("ns json array\n");
+ 	exit (0);
+ }
+ 
+-int main(int argc, char **argv) {
++int main(int argc, const char **argv) {
+ 	int i;
+ 
+ 	if (argc<2) showusage (1);
 @@ -104,9 +112,12 @@
  		char line[SDB_VSZ+SDB_KSZ]; // XXX can overflow stack
  		if ((s = sdb_new (argv[1], 0)))
@@ -77,12 +108,32 @@ Last-Update: 2013-03-28
 +#include "protocol.h"
 +#include "json/util.h"
  
- McSdb *ms = NULL;
+-McSdb *ms = NULL;
 -int protocol_handle(McSdbClient *c, char *buf);
++static McSdb *ms = NULL;
  
  static McSdbClient *mcsdb_client_new_fd(int fd) {
  	McSdbClient *c = R_NEW (McSdbClient);
-@@ -48,7 +49,7 @@
+@@ -26,7 +27,7 @@
+ 	return 1;
+ }
+ 
+-static void sigint() {
++static void sigint(int sig __unused) {
+ 	signal (SIGINT, SIG_IGN);
+ 	fprintf (stderr, "gets %lld\n", ms->gets);
+ 	fprintf (stderr, "sets %lld\n", ms->sets);
+@@ -40,15 +41,15 @@
+ 	exit (0);
+ }
+ 
+-static void setup_signals() {
++static void setup_signals(void) {
+ 	signal (SIGINT, sigint);
+ }
+ 
+-static void main_version() {
++static void main_version(void) {
  	printf ("mcsdbd v"MCSDB_VERSION"\n");
  }
  
@@ -113,6 +164,15 @@ Last-Update: 2013-03-28
  #pragma pack(2)
  #define ut16 unsigned short
  struct udphdr_t {
+@@ -283,7 +288,7 @@
+ 				ret = mcsdb_client_state (c);
+ //printf ("BOING next=%d idx=%d (%s)\n", c->next, c->idx, c->buf+c->idx);
+ //printf (".......................................... RET = %d\n", ret);
+-				int ph = protocol_handle (c, c->buf); //+c->next);
++				int ph = protocol_handle (ms, c, c->buf); //+c->next);
+ 				switch (ph) {
+ 				case 1:
+ 					break;
 --- a/memcache/client.c
 +++ b/memcache/client.c
 @@ -1,5 +1,6 @@
@@ -310,6 +370,21 @@ Last-Update: 2013-03-28
  				for (i=0; out[i]; i++)
  					buf[i] = out[i]==SDB_RS? '\n': out[i];
  				buf[i] = 0;
+@@ -122,10 +123,10 @@
+ 					return p;
+ 			} else {
+ 				// sdbget
+-				const char *p = sdb_getc (s, cmd, 0);
+-				if (!p) return NULL;
+-				if (strlen (p)> len) return strdup (p);
+-				strcpy (buf, p);
++				const char *pp = sdb_getc (s, cmd, 0);
++				if (!pp) return NULL;
++				if (strlen (pp)> len) return strdup (pp);
++				strcpy (buf, pp);
+ 				return buf;
+ 			}
+ 		}
 --- a/src/sdb.h
 +++ b/src/sdb.h
 @@ -61,8 +61,8 @@
@@ -345,6 +420,14 @@ Last-Update: 2013-03-28
  } SdbJsonString;
  
  const char *sdb_json_format(SdbJsonString* s, const char *fmt, ...);
+@@ -142,7 +142,6 @@
+ int sdb_alen(const char *str);
+ int sdb_alength(Sdb *s, const char *key);
+ int sdb_alist(Sdb *s, const char *key);
+-const char *sdb_anext(const char *str);
+ const char *sdb_aindex(const char *str, int idx);
+ 
+ #ifdef __cplusplus
 --- a/src/json/json.c
 +++ b/src/json/json.c
 @@ -5,13 +5,15 @@
@@ -364,13 +447,15 @@ Last-Update: 2013-03-28
  }
  
  int json_path_next(Rangstr *s) {
-@@ -51,12 +53,14 @@
+@@ -49,14 +51,16 @@
+ 	return 1;
+ }
  
++/* Unused, it seems. */
++#if 0
  typedef int (*JSONCallback)();
  
 -int json_foreach(const char *s, JSONCallback cb) {
-+/* Unused, it seems. */
-+#if 0
 +int json_foreach(const char *s, JSONCallback cb __unused) {
  	int i, len, ret;
  	unsigned short *res = NULL;
@@ -407,6 +492,22 @@ Last-Update: 2013-03-28
  #define PFREE(x) if (x&&x!=resfix) free (x)
  	if (ret>0) {
  		PFREE (res);
+@@ -118,11 +123,11 @@
+ 		return rs2;
+ 	} else {
+ 		for (i=0; res[i]; i+=4) {
+-			Rangstr rs2 = rangstr_news (s, res, i);
+-			if (!rangstr_cmp (rs, &rs2)) {
+-				rs2 = rangstr_news (s, res, i+2);
++			Rangstr rsn = rangstr_news (s, res, i);
++			if (!rangstr_cmp (rs, &rsn)) {
++				rsn = rangstr_news (s, res, i+2);
+ 				PFREE (res);
+-				return rs2;
++				return rsn;
+ 			}
+ 		}
+ 	}
 @@ -132,7 +137,8 @@
  }
  
@@ -540,7 +641,14 @@ Last-Update: 2013-03-28
  
  char *net_readnl(int fd) {
  	int i = -1;
-@@ -44,10 +45,12 @@
+@@ -38,16 +39,18 @@
+ 	return n;
+ }
+ 
+-int net_printf (int fd, char *fmt, ...) {
++int net_printf (int fd, const char *fmt, ...) {
+ 	int n;
+ 	char buf[MCSDB_MAX_BUFFER];
  	va_list ap;
  	va_start (ap, fmt);
  	n = vsnprintf (buf, sizeof (buf)-1, fmt, ap);
@@ -678,13 +786,22 @@ Last-Update: 2013-03-28
  #include <ctype.h>
  #include <sys/resource.h>
  
+@@ -37,7 +38,7 @@
+ 	net_printf (fd, "END\r\n"); // no elements found
+ }
+ 
+-int protocol_handle (McSdbClient *c, char *buf) {
++int protocol_handle (McSdb *ms, McSdbClient *c, char *buf) {
+ 	struct rusage ru;
+ 	int fd, ret, reply, stored = 1;
+ 	char *b, *p, *q, *cmd = buf, *key = NULL;
 --- /dev/null
 +++ b/memcache/protocol.h
 @@ -0,0 +1,6 @@
 +#ifndef _INCLUDED_SDB_MEMCACHE_PROTOCOL_H_
 +#define _INCLUDED_SDB_MEMCACHE_PROTOCOL_H_
 +
-+int protocol_handle (McSdbClient *c, char *buf);
++int protocol_handle (McSdb *ms, McSdbClient *c, char *buf);
 +
 +#endif
 --- a/src/alloc.h
@@ -737,15 +854,59 @@ Last-Update: 2013-03-28
  	SdbListIter *it;
 --- a/src/sdb.c
 +++ b/src/sdb.c
-@@ -14,6 +14,8 @@
- // must be deprecated
- static ut32 eod, pos; // what about lseek?
+@@ -12,9 +12,11 @@
+ #endif
  
+ // must be deprecated
+-static ut32 eod, pos; // what about lseek?
++static ut32 eod, sdbpos; // what about lseek?
+ 
+-static inline int nextcas() {
 +static struct sdb_kv* sdb_kv_new (const char *k, const char *v);
 +
- static inline int nextcas() {
++static inline int nextcas(void) {
  	static ut32 cas = 1;
  	if (!cas) cas++;
+ 	return cas++;
+@@ -273,7 +275,7 @@
+ 	ut32 ret = 0;
+ 	if (read (fd, buf, 4) != 4)
+ 		return 0;
+-	pos += 4;
++	sdbpos += 4;
+ 	ut32_unpack (buf, &ret);
+ 	return ret;
+ }
+@@ -281,7 +283,7 @@
+ static int getbytes(int fd, char *b, int len) {
+ 	if (read (fd, b, len) != len)
+ 		return -1;
+-	pos += len;
++	sdbpos += len;
+ 	return len;
+ }
+ 
+@@ -289,9 +291,9 @@
+ 	if (s->fd != -1) {
+ 		seek_set (s->fd, 0);
+ 		eod = getnum (s->fd);
+-		pos = 2048;
++		sdbpos = 2048;
+ 		seek_set (s->fd, 2048);
+-	} else eod = pos = 0;
++	} else eod = sdbpos = 0;
+ }
+ 
+ // XXX: overflow if caller doesnt respects sizes
+@@ -302,7 +304,7 @@
+ 		return 0;
+ 	if (klen >= SDB_KSZ || dlen >= SDB_VSZ)
+ 		return 0;
+-	pos += 4;
++	sdbpos += 4;
+ 	if (key && getbytes (s->fd, key, klen)>0)
+ 	if (value && getbytes (s->fd, value, dlen)>0) {
+ 		key[klen] = value[dlen] = 0;
 --- /dev/null
 +++ b/src/json/json-impl.h
 @@ -0,0 +1,8 @@
@@ -757,3 +918,55 @@ Last-Update: 2013-03-28
 +Rangstr json_find (const char *s, Rangstr *rs);
 +
 +#endif
+--- a/src/buffer.h
++++ b/src/buffer.h
+@@ -10,7 +10,7 @@
+ 	unsigned int p;
+ 	unsigned int n;
+ 	int fd;
+-	int (*op)();
++	BufferOp op;
+ } buffer;
+ 
+ #define BUFFER_INIT(op,fd,buf,len) { (buf), 0, (len), (fd), (op) }
+--- a/src/ht.h
++++ b/src/ht.h
+@@ -24,7 +24,6 @@
+ void ht_set(SdbHash *ht, ut32 hash, void *data);
+ SdbHashEntry* ht_search(SdbHash *ht, ut32 hash);
+ void *ht_lookup(SdbHash *ht, ut32 hash);
+-void ht_set(SdbHash *ht, ut32 hash, void *data);
+ int ht_insert(SdbHash *ht, ut32 hash, void *data, SdbListIter *iter);
+ void ht_remove(SdbHash *ht, ut32 hash);
+ void ht_remove_entry(SdbHash *ht, SdbHashEntry *entry);
+--- a/memcache/cmds.c
++++ b/memcache/cmds.c
+@@ -11,7 +11,7 @@
+ 	printf ("#define MCSDB_CMD_%s 0x%x\n", su, sdb_hash (s, 0));
+ }
+ 
+-int main() {
++int main(void) {
+ 	cmdhash ("version");
+ 	cmdhash ("verbosity");
+ 	cmdhash ("flush_all");
+--- a/memcache/mcsdb.h
++++ b/memcache/mcsdb.h
+@@ -51,8 +51,6 @@
+ 	ut8 buf[NETBUFSZ];
+ } NetClient;
+ 
+-extern McSdb *ms;
+-
+ McSdb *mcsdb_new(const char *file);
+ void mcsdb_free(McSdb *ms);
+ void mcsdb_flush(McSdb *ms);
+@@ -71,7 +69,7 @@
+ int net_listen(int port);
+ int net_close(int s);
+ int net_flush(int fd);
+-int net_printf(int fd, char *fmt, ...);
++int net_printf(int fd, const char *fmt, ...);
+ char *net_readnl(int fd);
+ 
+ /* client */
