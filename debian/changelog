@@ -2,7 +2,6 @@ sdb (0.6-1) UNRELEASED; urgency=low
 
   TODO: Lintian warnings
   TODO: confirm the public domain license
-  TODO: compiler warnings
 
   * Initial release.  Closes: #704059
 
