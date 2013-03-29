@@ -6,7 +6,7 @@ Standards-Version: 3.9.4
 Section: libs
 Homepage: http://github.com/radare/sdb/
 Vcs-Git: git://github.com/ppentchev/sdb.git -b debian
-Vcs-Browser: http://github.com/ppentchev/sdb/tree/debian
+Vcs-Browser: https://github.com/ppentchev/sdb/tree/debian
 
 Package: libsdb-dev
 Section: libdevel
